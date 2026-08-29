@@ -1,21 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import StatusBar from "../components/StatusBar";
 import BottomNav from "../components/BottomNav";
 import StatusTag from "../components/StatusTag";
 import { ChevronRight } from "../components/icons";
-import { services } from "../data";
+import { AuthGuard } from "@/lib/auth-guard";
+import { useAuth } from "@/lib/auth-context";
+import { getVisibleServices, getBookingsForCustomer } from "@/lib/firestore";
+import type { Service, Booking } from "@/lib/types";
 
 const categories = ["All", "Hair", "Beard", "Skin"] as const;
 
-export default function HomePage() {
+function HomeContent() {
+  const { user, profile } = useAuth();
   const [activeCategory, setActiveCategory] = useState<string>("All");
+  const [services, setServices] = useState<Service[]>([]);
+  const [nextBooking, setNextBooking] = useState<Booking | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getVisibleServices().then((s) => {
+      setServices(s);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      getBookingsForCustomer(user.uid).then((bookings) => {
+        const upcoming = bookings.find(
+          (b) => b.status === "confirmed" || b.status === "pending"
+        );
+        setNextBooking(upcoming || null);
+      });
+    }
+  }, [user]);
 
   const filteredServices = activeCategory === "All"
-    ? services.filter(s => s.id !== "kids-cut")
-    : services.filter(s => s.category === activeCategory.toLowerCase() && s.id !== "kids-cut");
+    ? services
+    : services.filter(s => s.category === activeCategory.toLowerCase());
+
+  const initials = profile?.name
+    ? profile.name.split(" ").map(n => n[0]).join("").toUpperCase()
+    : "?";
 
   return (
     <div className="screen">
@@ -52,25 +81,29 @@ export default function HomePage() {
           textDecoration: "none",
           color: "inherit",
         }}>
-          AR
+          {initials}
         </Link>
       </div>
 
       {/* Next Up */}
-      <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid var(--color-divider)" }}>
-        <div className="kick text-muted">Next up</div>
-        <div style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          marginTop: 6,
-        }}>
-          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 17 }}>
-            Haircut &middot; Fri 29 Aug, 15:30
+      {nextBooking && (
+        <div style={{ padding: "18px 16px 14px", borderBottom: "1px solid var(--color-divider)" }}>
+          <div className="kick text-muted">Next up</div>
+          <div style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            marginTop: 6,
+          }}>
+            <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 17 }}>
+              {nextBooking.serviceName} &middot; {nextBooking.date}, {nextBooking.time}
+            </div>
+            <StatusTag variant={nextBooking.status}>
+              {nextBooking.status === "confirmed" ? "Confirmed" : "Pending"}
+            </StatusTag>
           </div>
-          <StatusTag variant="confirmed">Confirmed</StatusTag>
         </div>
-      </div>
+      )}
 
       {/* Category filters */}
       <div style={{ display: "flex", gap: 8, padding: "14px 16px 12px" }}>
@@ -95,7 +128,9 @@ export default function HomePage() {
 
       {/* Services list */}
       <div style={{ borderTop: "2px solid var(--color-text)", flex: 1, overflow: "auto" }}>
-        {filteredServices.map((service) => (
+        {loading ? (
+          <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>Loading services...</div>
+        ) : filteredServices.map((service) => (
           <Link
             key={service.id}
             href={`/service/${service.id}`}
@@ -111,7 +146,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ fontWeight: 600, fontSize: 16 }}>${service.price}</div>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>&#8377;{service.price}</div>
                 <ChevronRight />
               </div>
             </div>
@@ -121,5 +156,13 @@ export default function HomePage() {
 
       <BottomNav />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <AuthGuard>
+      <HomeContent />
+    </AuthGuard>
   );
 }

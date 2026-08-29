@@ -1,17 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import StatusBar from "../../components/StatusBar";
 import AdminBottomNav from "../../components/AdminBottomNav";
 import StatusTag from "../../components/StatusTag";
 import { SearchIcon } from "../../components/icons";
-import { todaySchedule } from "../../data";
+import { AuthGuard } from "@/lib/auth-guard";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import type { Booking } from "@/lib/types";
 
-const filters = ["Today", "Upcoming", "Completed", "Cancelled"] as const;
+const filters = ["All", "Pending", "Confirmed", "Completed", "Cancelled"] as const;
 
-export default function AdminBookingsPage() {
-  const [activeFilter, setActiveFilter] = useState<string>("Today");
+function AdminBookingsContent() {
+  const [activeFilter, setActiveFilter] = useState<string>("All");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      const q = query(collection(db, "bookings"), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Booking);
+      setBookings(all);
+      setLoading(false);
+    };
+    fetchAll();
+  }, []);
+
+  const filtered = bookings.filter((b) => {
+    if (activeFilter !== "All" && b.status !== activeFilter.toLowerCase()) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      return b.customerName.toLowerCase().includes(s) || b.customerPhone.includes(s);
+    }
+    return true;
+  });
 
   return (
     <div className="screen">
@@ -33,7 +59,7 @@ export default function AdminBookingsPage() {
                 padding: "7px 11px",
                 border: activeFilter === f ? "none" : "1px solid var(--color-neutral-600)",
                 background: activeFilter === f ? "var(--color-accent)" : "transparent",
-                color: activeFilter === f ? "var(--color-bg)" : "var(--color-bg)",
+                color: "var(--color-bg)",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
               }}
@@ -53,16 +79,33 @@ export default function AdminBookingsPage() {
         alignItems: "center",
       }}>
         <SearchIcon />
-        <span className="text-muted" style={{ fontSize: 14 }}>Search name or phone</span>
+        <input
+          type="text"
+          placeholder="Search name or phone"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            flex: 1,
+            fontSize: 14,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            fontFamily: "var(--font-body)",
+          }}
+        />
       </div>
 
-      {/* Day section */}
+      {/* Bookings list */}
       <div style={{ flex: 1, overflow: "auto" }}>
-        <div style={{ padding: "12px 16px 6px" }}>
-          <div className="kick text-muted">Fri 29 Aug &middot; 5 appointments</div>
-        </div>
+        {loading && (
+          <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>Loading...</div>
+        )}
 
-        {todaySchedule.map((booking) => (
+        {!loading && filtered.length === 0 && (
+          <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>No bookings found</div>
+        )}
+
+        {filtered.map((booking) => (
           <Link
             key={booking.id}
             href={`/admin/booking/${booking.id}`}
@@ -81,10 +124,10 @@ export default function AdminBookingsPage() {
                     fontSize: 14,
                     fontWeight: 600,
                   }} className={booking.status === "cancelled" ? "text-muted" : ""}>
-                    {booking.customer}
+                    {booking.customerName}
                   </div>
                   <div className="text-muted" style={{ fontSize: 12 }}>
-                    {booking.service} &middot; ${booking.price}
+                    {booking.serviceName} &middot; &#8377;{booking.price}
                   </div>
                 </div>
               </div>
@@ -96,29 +139,17 @@ export default function AdminBookingsPage() {
             </div>
           </Link>
         ))}
-
-        {/* Next day preview */}
-        <div style={{ padding: "12px 16px 6px", borderTop: "2px solid var(--color-text)" }}>
-          <div className="kick text-muted">Sat 30 Aug &middot; 8 appointments</div>
-        </div>
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <div style={{ display: "flex", gap: 12 }}>
-            <span style={{
-              fontFamily: "var(--font-heading)",
-              fontWeight: 800,
-              fontSize: 15,
-              width: 44,
-            }}>09:00</span>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Sam Okoro</div>
-              <div className="text-muted" style={{ fontSize: 12 }}>Beard trim &middot; $18</div>
-            </div>
-          </div>
-          <StatusTag variant="confirmed">Confirmed</StatusTag>
-        </div>
       </div>
 
       <AdminBottomNav />
     </div>
+  );
+}
+
+export default function AdminBookingsPage() {
+  return (
+    <AuthGuard requiredRole="admin">
+      <AdminBookingsContent />
+    </AuthGuard>
   );
 }

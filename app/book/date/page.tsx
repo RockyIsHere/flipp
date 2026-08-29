@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import StatusBar from "../../components/StatusBar";
 import { ChevronLeft } from "../../components/icons";
-import { services } from "../../data";
+import { AuthGuard } from "@/lib/auth-guard";
+import { getService } from "@/lib/firestore";
+import type { Service } from "@/lib/types";
 import { Suspense } from "react";
 
 const dates = [
@@ -37,10 +39,17 @@ const afternoonSlots = [
 function DatePickerContent() {
   const searchParams = useSearchParams();
   const serviceId = searchParams.get("service") || "haircut";
-  const service = services.find((s) => s.id === serviceId) ?? services[0];
+  const [service, setService] = useState<Service | null>(null);
 
   const [selectedDate, setSelectedDate] = useState("29");
   const [selectedTime, setSelectedTime] = useState("15:30");
+
+  useEffect(() => {
+    getService(serviceId).then(setService);
+  }, [serviceId]);
+
+  const serviceName = service?.name || "Service";
+  const serviceDuration = service?.duration || "";
 
   return (
     <div className="screen">
@@ -56,7 +65,7 @@ function DatePickerContent() {
         <Link href={`/service/${serviceId}`} style={{ color: "inherit", display: "flex" }}>
           <ChevronLeft />
         </Link>
-        <span className="kick">Step 1 of 2 &middot; {service.name}, {service.duration}</span>
+        <span className="kick">Step 1 of 2 &middot; {serviceName}, {serviceDuration}</span>
       </div>
 
       {/* Month header */}
@@ -197,8 +206,10 @@ function DatePickerContent() {
 
 export default function DatePickerPage() {
   return (
-    <Suspense>
-      <DatePickerContent />
-    </Suspense>
+    <AuthGuard>
+      <Suspense>
+        <DatePickerContent />
+      </Suspense>
+    </AuthGuard>
   );
 }

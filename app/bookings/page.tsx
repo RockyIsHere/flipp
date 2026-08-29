@@ -1,18 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StatusBar from "../components/StatusBar";
 import BottomNav from "../components/BottomNav";
 import StatusTag from "../components/StatusTag";
-import { bookings } from "../data";
+import { AuthGuard } from "@/lib/auth-guard";
+import { useAuth } from "@/lib/auth-context";
+import { getBookingsForCustomer, updateBookingStatus } from "@/lib/firestore";
+import type { Booking } from "@/lib/types";
 
-export default function BookingsPage() {
+function BookingsContent() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
   const [cancelBooking, setCancelBooking] = useState<string | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      getBookingsForCustomer(user.uid).then((b) => {
+        setBookings(b);
+        setLoading(false);
+      });
+    }
+  }, [user]);
 
   const upcomingBookings = bookings.filter(b => b.status === "confirmed" || b.status === "pending");
   const pastBookings = bookings.filter(b => b.status === "completed" || b.status === "cancelled");
   const cancelTarget = bookings.find(b => b.id === cancelBooking);
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    await updateBookingStatus(cancelTarget.id, "cancelled");
+    setBookings(bookings.map(b => b.id === cancelTarget.id ? { ...b, status: "cancelled" } : b));
+    setCancelBooking(null);
+  };
 
   return (
     <div className="screen">
@@ -64,6 +86,14 @@ export default function BookingsPage() {
 
       {/* Booking cards */}
       <div style={{ flex: 1, overflow: "auto" }}>
+        {loading && (
+          <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>Loading bookings...</div>
+        )}
+
+        {!loading && activeTab === "upcoming" && upcomingBookings.length === 0 && (
+          <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>No upcoming bookings</div>
+        )}
+
         {activeTab === "upcoming" && upcomingBookings.map((booking) => (
           <div key={booking.id} style={{
             padding: 16,
@@ -74,10 +104,10 @@ export default function BookingsPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 10 }}>
               <div>
                 <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 18 }}>
-                  {booking.service}
+                  {booking.serviceName}
                 </div>
                 <div className="text-muted" style={{ fontSize: 13, marginTop: 2 }}>
-                  {booking.date} &middot; {booking.time} &middot; {booking.duration} &middot; ${booking.price}
+                  {booking.date} &middot; {booking.time} &middot; {booking.duration} &middot; &#8377;{booking.price}
                 </div>
               </div>
               <StatusTag variant={booking.status}>{booking.status === "confirmed" ? "Confirmed" : "Pending"}</StatusTag>
@@ -97,7 +127,7 @@ export default function BookingsPage() {
           </div>
         ))}
 
-        {activeTab === "upcoming" && (
+        {activeTab === "upcoming" && pastBookings.length > 0 && (
           <div style={{ padding: "14px 16px 6px" }}>
             <div className="kick text-muted">Earlier</div>
           </div>
@@ -110,7 +140,7 @@ export default function BookingsPage() {
                 fontWeight: 600,
                 fontSize: 15,
               }} className={booking.status === "cancelled" ? "text-muted" : ""}>
-                {booking.service}
+                {booking.serviceName}
               </div>
               <div className="text-muted" style={{ fontSize: 12 }}>
                 {booking.date} &middot; {booking.time}
@@ -122,6 +152,10 @@ export default function BookingsPage() {
           </div>
         ))}
 
+        {activeTab === "past" && pastBookings.length === 0 && !loading && (
+          <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>No past bookings</div>
+        )}
+
         {activeTab === "past" && pastBookings.map((booking) => (
           <div key={booking.id} className="row" style={{ justifyContent: "space-between", alignItems: "start" }}>
             <div>
@@ -129,7 +163,7 @@ export default function BookingsPage() {
                 fontWeight: 600,
                 fontSize: 15,
               }} className={booking.status === "cancelled" ? "text-muted" : ""}>
-                {booking.service}
+                {booking.serviceName}
               </div>
               <div className="text-muted" style={{ fontSize: 12 }}>
                 {booking.date} &middot; {booking.time}
@@ -164,13 +198,13 @@ export default function BookingsPage() {
           }}>
             <h4 style={{ margin: "0 0 6px" }}>Cancel this booking?</h4>
             <p className="text-muted" style={{ fontSize: 13 }}>
-              {cancelTarget.service}, {cancelTarget.date} at {cancelTarget.time}. Cancelling now is free — under 4 hours a $10 fee applies.
+              {cancelTarget.serviceName}, {cancelTarget.date} at {cancelTarget.time}. Cancelling now is free — under 4 hours a &#8377;100 fee applies.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 16 }}>
               <button
                 className="btn btn-primary btn-block"
                 style={{ padding: 17, fontSize: 15, margin: 0 }}
-                onClick={() => setCancelBooking(null)}
+                onClick={handleCancel}
               >
                 Yes, cancel booking
               </button>
@@ -193,5 +227,13 @@ export default function BookingsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <AuthGuard>
+      <BookingsContent />
+    </AuthGuard>
   );
 }

@@ -1,11 +1,35 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import StatusBar from "../../components/StatusBar";
 import { ChevronLeft, CheckIcon } from "../../components/icons";
-import { services } from "../../data";
+import { AuthGuard } from "@/lib/auth-guard";
+import { getService } from "@/lib/firestore";
+import type { Service } from "@/lib/types";
 
-export default async function ServiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const service = services.find((s) => s.id === id) ?? services[0];
+function ServiceDetailContent() {
+  const params = useParams();
+  const id = params.id as string;
+  const [service, setService] = useState<Service | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getService(id).then((s) => {
+      setService(s);
+      setLoading(false);
+    });
+  }, [id]);
+
+  if (loading || !service) {
+    return (
+      <div className="screen">
+        <StatusBar />
+        <div className="text-muted" style={{ padding: 16, fontSize: 14 }}>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen">
@@ -38,7 +62,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <div style={{ flex: 1, padding: 16, borderRight: "1px solid var(--color-divider)" }}>
           <div className="kick text-muted">Price</div>
           <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 24, marginTop: 4 }}>
-            ${service.price}
+            &#8377;{service.price}
           </div>
         </div>
         <div style={{ flex: 1, padding: 16 }}>
@@ -76,7 +100,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <div>
           <div className="kick text-muted">Total</div>
           <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 22 }}>
-            ${service.price}
+            &#8377;{service.price}
           </div>
         </div>
         <Link href={`/book/date?service=${service.id}`} style={{ flex: 1, textDecoration: "none" }}>
@@ -86,5 +110,13 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function ServiceDetailPage() {
+  return (
+    <AuthGuard>
+      <ServiceDetailContent />
+    </AuthGuard>
   );
 }
