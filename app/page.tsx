@@ -45,11 +45,20 @@ export default function LoginPage() {
     return verifierRef.current!;
   };
 
+  const formatFullPhone = (raw: string) => {
+    let digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("91") && digits.length > 10) {
+      digits = digits.slice(2);
+    }
+    digits = digits.replace(/^0+/, "");
+    return "+91" + digits;
+  };
+
   const handleSendCode = async () => {
     setError("");
     setBusy(true);
     try {
-      const fullPhone = "+91" + phone.replace(/\D/g, "");
+      const fullPhone = formatFullPhone(phone);
       const verifier = setupRecaptcha();
       const result = await signInWithPhoneNumber(auth, fullPhone, verifier);
       setConfirmResult(result);
@@ -96,7 +105,7 @@ export default function LoginPage() {
     try {
       await createOrUpdateUserProfile(auth.currentUser.uid, {
         name,
-        phone: auth.currentUser.phoneNumber || "+91" + phone.replace(/\D/g, ""),
+        phone: auth.currentUser.phoneNumber || formatFullPhone(phone),
         role: "customer",
       });
       router.replace("/home");
