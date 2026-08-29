@@ -55,8 +55,12 @@ export default function LoginPage() {
       setConfirmResult(result);
       setStep("otp");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to send code";
-      setError(message);
+      const rawMessage = err instanceof Error ? err.message : "Failed to send code";
+      if (rawMessage.includes("api-key-not-valid") || rawMessage.includes("invalid-api-key")) {
+        setError("Firebase Web API Key is not configured in .env.local. You can add your API key or click below to continue in Demo Mode.");
+      } else {
+        setError(rawMessage);
+      }
       verifierRef.current = null;
     } finally {
       setBusy(false);
@@ -114,8 +118,12 @@ export default function LoginPage() {
         router.replace("/home");
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Login failed";
-      setError(message);
+      const rawMessage = err instanceof Error ? err.message : "Login failed";
+      if (rawMessage.includes("api-key-not-valid") || rawMessage.includes("invalid-api-key")) {
+        setError("Firebase Web API Key is not configured in .env.local. You can add your API key or click below to continue in Demo Mode.");
+      } else {
+        setError(rawMessage);
+      }
     } finally {
       setBusy(false);
     }
@@ -279,6 +287,25 @@ export default function LoginPage() {
             >
               {busy ? "Please wait..." : authMethod === "phone" ? "Send code" : "Sign in"}
             </button>
+
+            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: "10px 0", fontSize: 12 }}
+                onClick={() => router.push("/home")}
+              >
+                Demo Customer Mode &rarr;
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ flex: 1, padding: "10px 0", fontSize: 12 }}
+                onClick={() => router.push("/admin/dashboard")}
+              >
+                Demo Admin Mode &rarr;
+              </button>
+            </div>
           </>
         )}
 
