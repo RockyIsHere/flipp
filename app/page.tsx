@@ -58,6 +58,8 @@ export default function LoginPage() {
       const rawMessage = err instanceof Error ? err.message : "Failed to send code";
       if (rawMessage.includes("api-key-not-valid") || rawMessage.includes("invalid-api-key")) {
         setError("Firebase Web API Key is not configured in .env.local. You can add your API key or click below to continue in Demo Mode.");
+      } else if (rawMessage.includes("operation-not-allowed")) {
+        setError("Phone Authentication / SMS Region is disabled in your Firebase Console. Please enable Phone Auth in Firebase Console > Authentication > Sign-in method.");
       } else {
         setError(rawMessage);
       }
